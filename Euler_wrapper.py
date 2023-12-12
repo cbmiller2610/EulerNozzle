@@ -12,7 +12,7 @@ def grid_transform(xi, eta, m1, m2, nozzle_xloc, nozzle_ymax, throat_xloc, throa
     #Region 2: diverging
     elif (xi > 1.5):
         y = eta*(m2 * (xi - throat_xloc) + throat_ymax)
-   else:
+    else:
         print("OUT OF RANGE")
     return y
 
@@ -79,7 +79,7 @@ def Ughost_to_Eghost(U, xi_div):
     U2 = U[:, :, 1]
     U3 = U[:, :, 2]
     U4 = U[:, :, 3]
-    E_step = np.empty((xi_div, 2, 4))
+    E_step = np.empty((xi_div-2, 2, 4))
     g = 1.4
     E_step[:, :, 0] = U2
     E_step[:, :, 1] = U2**2 / U1 + (1 - 1 / g) * (U4 - (g / 2) * ((U2**2 + U3**2) / U1))
@@ -92,7 +92,7 @@ def Ughost_to_Fghost(U, xi_div):
     U2 = U[:, :, 1]
     U3 = U[:, :, 2]
     U4 = U[:, :, 3]
-    F_step = np.empty((xi_div, 2, 4))
+    F_step = np.empty((xi_div-2, 2, 4))
     g = 1.4
     F_step[:, :, 0] = U3
     F_step[:, :, 1] = (U2 *U3) / U1
@@ -144,9 +144,9 @@ y_grid = grid_trans_func(xi_grid, eta_grid, m1, m2, nozzle_xloc, nozzle_ymax, th
 #Initial Conditions
 
 IC_func = np.vectorize(initial_cond)
-rho,e T = IC_func(xi_grid)
+rho, T = IC_func(xi_grid)
 u = 0.59 / rho
-v = np.zeros(xi_div, eta_div)
+v = np.zeros((xi_div, eta_div))
 g = 1.4
 
 #Creation of the Tensors of Conserved Variables and Fluxes as C Arrays
@@ -194,7 +194,7 @@ Ughosts = np.empty((xi_div-2, 2, 4))
 Eghosts = np.empty((xi_div-2, 2, 4))
 Fghosts = np.empty((xi_div-2, 2, 4))
 
-for i in range(0,tsteps):
+for i in range(1,tsteps):
     #Update boundary nodes from last timestep
     #left boundary, subsonic inlet (2 float, 2 prescribed)
     T = 1
@@ -208,22 +208,52 @@ for i in range(0,tsteps):
 
     #right boundary, supersonic outlet, all quantities float
     U_np_3D[-1, :, :] = 2 * U_np_3D[-2, :, :] - U_np_3D[-3, :, :]
-
+    U_init = U_np_3D
     #Wall and symmetry boundaries (update ghosts)
     #Lower Boundary
-    ghosts[:, 0, :] = U_np_3D[1:-1, 0, :]
-    ghosts[:, 0, 2] = -U_np_3D[1:-1, 0, 2]
+    Ughosts[:, 0, :] = U_np_3D[1:-1, 0, :]
+    Ughosts[:, 0, 2] = - U_np_3D[1:-1, 0, 2]
     #Upper Boundary
     Ughosts[:, 1, :] = U_np_3D[1:-1, -1, :]
-    Ughosts[:, 1, 2] = -U_np_3D[1:-1, -1, 2]
+    Ughosts[:, 1, 2] = - U_np_3D[1:-1, -1, 2]
     
     #Update Flux Terms
     E_np_3D = U_to_E(U_np_3D, xi_div, eta_div)
     F_np_3D = U_to_F(U_np_3D, xi_div, eta_div)
+    #Eghosts = Ughost_to_Eghost(Ughosts, xi_div)
+    Fghosts = Ughost_to_Fghost(Ughosts, xi_div)
+
+    #Predictor Step (Upper boundary uses ghost)
+   #Update Upper Before Internal Flow
+    U_np_3D[1:-1, -1, :]  = (U_np_3D[1:-1, -1, :] - (dt / dxi) * (E_np_3D[2:xi_div, -1, :] - E_np_3D[1:-1, -1, :])
+                            - (dt / deta) * (Fghosts[:, 1, :] - F_np_3D[1:-1, -1, :]))
+    #Inner
+    U_np_3D[1:-1, 0:-1, :] = (U_np_3D[1:-1, 0:-1, :]
+                            - (dt / dxi) * (E_np_3D[2:xi_div, 0:-1, :] - E_np_3D[1:-1, 0:-1, :])
+                            - (dt / deta) * (F_np_3D[1:-1, 1:eta_div, :] - F_np_3D[1:-1, 0:-1, :]))
+
+    #Corrector Step (Lower boundary uses ghost)
+    #Update Flux Terms to Next Time Level
+    E_np_3D = U_to_E(U_np_3D, xi_div, eta_div)
+    F_np_3D = U_to_F(U_np_3D, xi_div, eta_div)
+    #Update Lower Before Internal Flow
+    U_np_3D[1:-1, 0, :]  = 0.5 * (U_np_3D[1:-1, 0, :] + U_init[1:-1, 0, :]
+                            - (dt / dxi) * (E_np_3D[1:-1, 0, :] - E_np_3D[0:-2, 0, :])
+                            - (dt / deta) * (F_np_3D[1:-1, 0, :] - Fghosts[:, 0, :]))
+    #Inner
+    U_np_3D[1:-1, 1:eta_div, :] = 0.5 * (U_np_3D[1:-1, 1:eta_div, :]  + U_init[1:-1, 1:eta_div, :]
+                                         - (dt / dxi) * (E_np_3D[1:-1, 1:eta_div, :] - E_np_3D[0:-2, 1:eta_div, :])
+                                         - (dt / deta) * (F_np_3D[1:-1, 1:eta_div, :] - F_np_3D[1:-1, 0:-1, :]))
+    
+    #Transform Back to Physical Coordinates
+    xi_max = 3
+    eta_max = 1
+    xi_vec = np.linspace(0,xi_max,xi_div)
+    eta_vec = np.linspace(0,eta_max,eta_div)
+    xi_grid,eta_grid = np.meshgrid(xi_vec,eta_vec,indexing='ij')
 
 
-    #Predictor Step (upper and lower boundary with ghost)
-    U_pred = (U_np_3D[1:-1, 2:-2, :] - (dt / dxi) * (E_np_3D[2:xi_div, 2:x_div - 2, :] - E_np_3D[1:-1, 2:-2, :])
-              - (dt / deta) * (F_np_3D[1:-1, 3:-1, :]) )
+    P_stor[:, :, :, i] = U_to_prim(U_np_3D, xi_div, eta_div)
+
 with open('TEST.dat', 'wb') as f: 
     np.save(f, P_stor)
