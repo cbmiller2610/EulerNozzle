@@ -216,3 +216,4 @@ dkms.conf
 *.dat
 *.txt
 *.png
+*.swp
