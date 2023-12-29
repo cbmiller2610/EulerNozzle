@@ -7,28 +7,32 @@ import timeit
 def grid_transform(xi, eta, m1, m2, nozzle_xloc, nozzle_ymax, throat_xloc, throat_ymax):
 
     #Region 1: converging
-    if xi <= 1.5:
+    if xi <= 5:
         y = eta * (m1 * (xi - inlet_xloc) + inlet_ymax)
     #Region 2: diverging
-    elif (xi > 1.5):
+    elif (xi > 5):
         y = eta*(m2 * (xi - throat_xloc) + throat_ymax)
     else:
         print("OUT OF RANGE")
     return y
 
 def initial_cond(xi):
-    #if (xi >= 0) & (xi < 0.5):
+    #s1 = 0.5 * (10 / 3)
+    #s2 = 1.5 * (10 / 3)
+    #s3 = 2.1 * (10 / 3)
+    #s4 = 3 * (10 / 3)
+    #if (xi >= 0) & (xi < s1):
     #    rho = 1.0
     #    T = 1.0
-    #elif (xi >= 0.5) & (xi < 1.5):
-    #    rho = 1.0 - 0.366 * (xi - 0.5)
-    #    T = 1.0 - 0.167 * (xi - 0.5)
-    #elif (xi >= 1.5) & (xi < 2.1):
-    #    rho = 0.634 - 0.702 * (xi - 1.5)
-    #    T = 0.833 - 0.4908 * (xi - 1.5)
-    #elif (xi >= 2.1) & (xi <= 3.0):
-    #    rho = 0.5892 + 0.10228 * (xi - 2.1)
-    #    T = 0.93968 + 0.0622 * (xi - 2.1) 
+    #elif (xi >= s1) & (xi < s2):
+    #    rho = 1.0 - 0.366 * (3 / 10) * (xi - s1)
+    #    T = 1.0 - 0.167 * (3 / 10) * (xi - s1)
+    #elif (xi >= s2) & (xi < s3):
+    #    rho = 0.634 - 0.702 * (3 / 10) * (xi - s2)
+    #    T = 0.833 - 0.4908 * (3 / 10) * (xi - s2)
+    #elif (xi >= s3) & (xi <= s4):
+    #    rho = 0.5892 + 0.10228 * (3 / 10) * (xi - s3)
+    #    T = 0.93968 + 0.0622 * (3 / 10) * (xi - s3) 
     #else:
     #    print("OUT OF RANGE")
     rho = 1 
@@ -60,7 +64,7 @@ def U_to_E(U, xi_div, eta_div):
     E_step[:, :, 0] = U2
     E_step[:, :, 1] = U2**2 / U1 + (1 - 1 / g) * (U4 - (g / 2) * ((U2**2 + U3**2) / U1))
     E_step[:, :, 2] = (U2 * U3) / U1
-    E_step[:, :, 3] = (g * U2 * U4) / U1 - ((g * (g - 1)) / 2) * ((U2**3 + U2 * U3**2)/U1)
+    E_step[:, :, 3] = (g * U2 * U4) / U1 - ((g * (g - 1)) / 2) * ((U2**3 + U2 * U3**2)/ (U1**2))
     return E_step
 
 def U_to_F(U, xi_div, eta_div):
@@ -73,7 +77,7 @@ def U_to_F(U, xi_div, eta_div):
     F_step[:, :, 0] = U3
     F_step[:, :, 1] = (U2 *U3) / U1
     F_step[:, :, 2] = U3**2 / U1 + (1 - 1 / g) * (U4 - (g / 2) * ((U2**2 + U3**2) / U1))
-    F_step[:, :, 3] = (g * U3 * U4) / U1 - ((g * (g - 1)) / 2) * ((U2**2 * U3 + U3**3) / U1)
+    F_step[:, :, 3] = (g * U3 * U4) / U1 - ((g * (g - 1)) / 2) * ((U2**2 * U3 + U3**3) / (U1**2))
     return F_step
 
 def Ughost_to_Eghost(U, xi_div):
@@ -86,7 +90,7 @@ def Ughost_to_Eghost(U, xi_div):
     E_step[:, :, 0] = U2
     E_step[:, :, 1] = U2**2 / U1 + (1 - 1 / g) * (U4 - (g / 2) * ((U2**2 + U3**2) / U1))
     E_step[:, :, 2] = (U2 * U3) / U1
-    E_step[:, :, 3] = (g * U2 * U4) / U1 - ((g * (g - 1)) / 2) * ((U2**3 + U2 * U3**2)/U1)
+    E_step[:, :, 3] = (g * U2 * U4) / U1 - ((g * (g - 1)) / 2) * ((U2**3 + U2 * U3**2) / (U1**2))
     return E_step
 
 def Ughost_to_Fghost(U, xi_div):
@@ -97,19 +101,19 @@ def Ughost_to_Fghost(U, xi_div):
     F_step = np.empty((xi_div-2, 2, 4))
     g = 1.4
     F_step[:, :, 0] = U3
-    F_step[:, :, 1] = (U2 *U3) / U1
+    F_step[:, :, 1] = (U2 * U3) / U1
     F_step[:, :, 2] = U3**2 / U1 + (1 - 1 / g) * (U4 - (g / 2) * ((U2**2 + U3**2) / U1))
-    F_step[:, :, 3] = (g * U3 * U4) / U1 - ((g * (g - 1)) / 2) * ((U2**2 * U3 + U3**3) / U1)
+    F_step[:, :, 3] = (g * U3 * U4) / U1 - ((g * (g - 1)) / 2) * ((U2**2 * U3 + U3**3) / (U1**2))
     return F_step
 
 def grid_transform(xi, eta, m1, m2, nozzle_xloc,nozzle_ymax,throat_xloc,throat_ymax):
 
 
     #Region 1: converging
-    if xi<=1.5:
+    if xi<=5:
         y=eta * (m1 * (xi - inlet_xloc) + inlet_ymax)
     #Region 2: diverging
-    elif (xi > 1.5):
+    elif (xi > 5):
         y=eta * (m2 * (xi-throat_xloc) + throat_ymax)
     #Region 3: farfield
     # elif (xi > 5) & (xi <= 25):
@@ -119,10 +123,10 @@ def grid_transform(xi, eta, m1, m2, nozzle_xloc,nozzle_ymax,throat_xloc,throat_y
     return y
 
 def coord_transform(U_np_3D, E_np_3D, F_np_3D, xi_grid, eta_grid, m1, m2, inlet_xloc, inlet_ymax, throat_xloc, throat_ymax):
-    if xi_grid <= 1.5:
+    if xi_grid <= 5:
         ys = (m1 * (xi_grid - inlet_xloc) + inlet_ymax)
         m=m1
-    elif xi_grid > 1.5:
+    elif xi_grid > 5:
         ys = (m2 * (xi_grid - throat_xloc) + throat_ymax)
         m=m2
     else:
@@ -133,10 +137,10 @@ def coord_transform(U_np_3D, E_np_3D, F_np_3D, xi_grid, eta_grid, m1, m2, inlet_
     return U_new, E_new, F_new
 
 def return_transform(U_np_3D, E_np_3D, F_np_3D, xi_grid, eta_grid, m1, m2, inlet_xloc, inlet_ymax, throat_xloc, throat_ymax):
-    if xi_grid <= 1.5:
+    if xi_grid <= 5:
         ys = (m1 * (xi_grid - inlet_xloc) + inlet_ymax)
         m=m1
-    elif xi_grid > 1.5:
+    elif xi_grid > 5:
         ys = (m2 * (xi_grid - throat_xloc) + throat_ymax)
         m=m2
     else:
@@ -153,14 +157,14 @@ def return_transform(U_np_3D, E_np_3D, F_np_3D, xi_grid, eta_grid, m1, m2, inlet
 #solver_dll.argtypes = [c_double, c_double, c_double, c_int, c_int, c_int]
 
 #Gridding Inputs
-xi_max = 3
+xi_max = 10
 eta_max = 1
-xi_div = 1001
-eta_div = 501
+xi_div = 501
+eta_div = 251
 dxi = xi_max / (xi_div - 1)
 deta = eta_max / (eta_div - 1)
-dt = 0.001
-tsteps = 200
+dt = 0.0001
+tsteps = 2000 
 
 #Grid Generation
 xi_vec = np.linspace(0,xi_max,xi_div)
@@ -174,9 +178,9 @@ throat_ymax = 1
 inlet_ymax = np.sqrt(5.95)
 nozzle_ymax = np.sqrt(5.95)
 
-throat_xloc = 1.5
+throat_xloc = 5
 inlet_xloc = 0
-nozzle_xloc = 3
+nozzle_xloc = 10
 
 
 m1 = (throat_ymax - inlet_ymax)/(throat_xloc - inlet_xloc)
@@ -187,10 +191,13 @@ y_grid = grid_trans_func(xi_grid,eta_grid, m1, m2, nozzle_xloc,nozzle_ymax,throa
 #Initial Conditions
 
 IC_func = np.vectorize(initial_cond)
-rho, T = IC_func(xi_grid)
-#u = 0.59 / rho
-u = np.full((xi_div, eta_div),0)
-v = np.full((xi_div, eta_div), 0)
+rho, T = IC_func(x_grid)
+#u = (0.59 / rho)*np.cos(np.arctan2(y_grid, 10))
+#v = (0.59 / rho)*np.sin(np.arctan2(y_grid, 10))
+u = (0.01 / rho)*np.cos(np.arctan2(y_grid, 10))
+v = (0.01 / rho)*np.sin(np.arctan2(y_grid, 10))
+
+v[0:int((xi_div-1)/2+1),:] = -1*v[0:int((xi_div-1)/2+1),:]
 g = 1.4
 
 #Creation of the Tensors of Conserved Variables and Fluxes as C Arrays
@@ -231,12 +238,12 @@ U_np_3D[:, :, 3] = U4
 E_np_3D[:, :, 0] = U2
 E_np_3D[:, :, 1] = U2**2 / U1 + (1 - 1 / g) * (U4 - (g / 2) * ((U2**2 + U3**2) / U1))
 E_np_3D[:, :, 2] = (U2 * U3) / U1
-E_np_3D[:, :, 3] = (g * U2 * U4) / U1 - ((g * (g - 1)) / 2) * ((U2**3 + U2 * U3**2) / U1)
+E_np_3D[:, :, 3] = (g * U2 * U4) / U1 - ((g * (g - 1)) / 2) * ((U2**3 + U2 * U3**2) / (U1**2))
 
 F_np_3D[:, :, 0] = U3
 F_np_3D[:, :, 1] = (U2 * U3) / U1
 F_np_3D[:, :, 2] = U3**2 / U1 + (1 - 1 / g) * (U4 - (g / 2) * ((U2**2 + U3**2) / U1))
-F_np_3D[:, :, 3] = (g * U3 * U4) / U1 - ((g * (g - 1)) / 2) * ((U2**2 * U3 + U3**3) / U1)
+F_np_3D[:, :, 3] = (g * U3 * U4) / U1 - ((g * (g - 1)) / 2) * ((U2**2 * U3 + U3**3) / (U1**2))
 
 with open('TEST_U_before.dat', 'wb') as f:
     np.save(f, U_np_3D)
